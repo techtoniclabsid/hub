@@ -27,12 +27,14 @@ export type TApiErrorParam =
     };
 
 export class ApiError extends Error {
-  code?: string;
+  code?: TErrorCode;
   status?: number;
   cause?: unknown;
 
   constructor(param: TApiErrorParam) {
     super(param.message);
+    this.name = this.constructor.name;
+
     if (param.code) {
       const { status, message } = this.parseErrorCodeString(param.code);
       this.status = status;
