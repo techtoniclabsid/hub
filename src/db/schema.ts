@@ -45,23 +45,24 @@ export const WebsiteSchema = pgTable("websites", {
 
 export const WebsiteRelations = relations(WebsiteSchema, ({ one, many }) => ({
   client: one(ClientSchema),
-  quota: one(QuotaSchema),
+  storage: one(StorageSchema),
   package: one(PackageSchema),
   addons: many(WebsiteAddonsSchema),
 }));
 
-export const QuotaSchema = pgTable("quotas", {
+export const StorageSchema = pgTable("storages", {
   id: text()
     .$defaultFn(() => createId())
     .primaryKey(),
-  quota: integer().notNull(),
+  storage: integer().notNull(),
   remaining: integer().notNull(),
+  bucket: text().notNull(),
   websiteId: text()
     .references(() => WebsiteSchema.id, {})
     .notNull(),
 });
 
-export const QuotaRelations = relations(QuotaSchema, ({ one }) => ({
+export const StorageRelations = relations(StorageSchema, ({ one }) => ({
   website: one(WebsiteSchema),
 }));
 
