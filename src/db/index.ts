@@ -1,5 +1,6 @@
-import "dotenv/config";
+import * as schema from "@/db/schema";
 import { drizzle } from "drizzle-orm/node-postgres";
 
-export const db = drizzle(process.env.DATABASE_URL!);
+//@ts-expect-error ignore semantic error from ts
+export const db = drizzle({ schema });
 export type TDbClient = typeof db;
