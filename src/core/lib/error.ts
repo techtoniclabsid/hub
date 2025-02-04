@@ -1,55 +1,60 @@
 import { ZodError } from "zod";
 
-export const enum EErrorCode {
-  ErrNotFound = "404:data not found",
-  ErrUnauthorized = "401:sign in to continue",
-  ErrUnknown = "500:unknown error occurred",
+export enum EErrorCode {
   ErrValidation = "400:error in parsing input data",
+  ErrUnauthorized = "401:sign in to continue",
   ErrForbidden = "403:request forbidden",
+  ErrNotFound = "404:data not found",
   ErrConflict = "409:request conflict",
-  ErrTooManyRequest = "425:too many request",
+  ErrTooManyRequests = "425:too many requests",
+  ErrUnknown = "500:unknown error occurred",
 }
 
 export type TErrorCode = keyof typeof EErrorCode;
 
-export type TApiErrorParam = {
-  status?: number;
-  message?: string;
-  error?: unknown;
-  code?: TErrorCode;
-};
+export type TApiErrorParam =
+  | {
+      message: string;
+      status?: number;
+      error?: unknown;
+      code?: TErrorCode;
+    }
+  | {
+      code: TErrorCode;
+      message?: string;
+      status?: number;
+      error?: unknown;
+    };
 
-export class ApiError {
-  private _cause: unknown;
-  private _message?: string;
-  private _code?: string;
-  private _status?: number;
+export class ApiError extends Error {
+  code?: string;
+  status?: number;
+  cause?: unknown;
 
   constructor(param: TApiErrorParam) {
+    super(param.message);
     if (param.code) {
       const { status, message } = this.parseErrorCodeString(param.code);
-      this._status = status;
-      this._code = param.code;
-      this._message = message;
-    }
-
-    if (param.message) {
-      this._message = param.message;
+      this.status = status;
+      this.code = param.code;
+      if (!param.message) {
+        this.message = message;
+      }
     }
 
     if (param.status) {
-      this._status = param.status;
+      this.status = param.status;
     }
 
     if (param.error) {
       if (param.error instanceof ZodError) {
-        this._cause = param.error.flatten();
+        this.cause = param.error.flatten();
       }
     }
   }
 
   parseErrorCodeString(code: TErrorCode) {
-    const split = code.split(":");
+    const split = EErrorCode[code].split(":");
     const parsed = {
       status: parseInt(split[0]),
       message: split[1],
@@ -62,28 +67,25 @@ export class ApiError {
     return new ApiError(param);
   }
 
+  toObject() {
+    return {
+      code: this.code,
+      message: this.message,
+      cause: this.cause,
+      status: this.status,
+    };
+  }
+
   toResponse() {
     return Response.json(
       {
         error: {
-          code: this._code,
-          message: this._message,
-          cause: this._cause,
+          code: this.code,
+          message: this.message,
+          cause: this.cause,
         },
       },
-      { status: this._status }
+      { status: this.status }
     );
-  }
-
-  get cause() {
-    return this._cause;
-  }
-
-  get message() {
-    return this._message;
-  }
-
-  get status() {
-    return this._status;
   }
 }
