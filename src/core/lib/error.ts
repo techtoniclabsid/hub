@@ -1,42 +1,55 @@
 import { ZodError } from "zod";
 
 export enum EErrorCode {
-  ErrValidation = "400:error in parsing input data",
-  ErrUnauthorized = "401:sign in to continue",
-  ErrForbidden = "403:request forbidden",
-  ErrNotFound = "404:data not found",
-  ErrConflict = "409:request conflict",
-  ErrTooManyRequests = "425:too many requests",
-  ErrUnknown = "500:unknown error occurred",
+  // general error
+  ErrValidation = "400:Error in parsing input data",
+  ErrUnauthorized = "401:Authorization needed",
+  ErrForbidden = "403:Request forbidden",
+  ErrNotFound = "404:Data not found",
+  ErrConflict = "409:Request conflict",
+  ErrTooManyRequests = "425:Too many requests",
+  ErrUnknown = "500:Unknown error occurred",
+
+  // auth error
+  ErrAuthInvalidRequest = "400:Request is missing required parameter",
+  ErrAuthInvalidClient = "401:Client id or secret is invalid",
+  ErrAuthInvalidGrant = "400:Grant is invalid or expired",
+  ErrAuthInvalidScope = "400:Scope value is invalid",
+  ErrAuthUnauthorizedClient = "401:Client is not authorized to use the requested grant type",
+  ErrAuthUnsupportedGrantType = "400:Grant type is not supported",
+  ErrAuthIncorrectAuthType = "400:Incorrect auth type",
+  ErrAuthDisabled = "401:Client credentials is disabled",
+  ErrAuthMismatch = "401:Client credentials is mismatch",
+  ErrAuthInvalidToken = "400:Token is malformed or expired",
 }
 
 export type TErrorCode = keyof typeof EErrorCode;
 
-export type TApiErrorParam =
-  | {
-      message: string;
-      status?: number;
-      error?: unknown;
-      code?: TErrorCode;
-    }
-  | {
-      code: TErrorCode;
-      message?: string;
-      status?: number;
-      error?: unknown;
-    };
+export type TApiErrorParams = {
+  message: string;
+  status?: number;
+  cause?: unknown;
+  code?: TErrorCode;
+};
+
+export type TApiErrorOptionalsParams = {
+  message?: string;
+  status?: number;
+  cause?: unknown;
+  code?: TErrorCode;
+};
 
 export class ApiError extends Error {
   code?: TErrorCode;
   status?: number;
   cause?: unknown;
 
-  constructor(param: TApiErrorParam) {
+  constructor(param: TApiErrorParams) {
     super(param.message);
     this.name = this.constructor.name;
 
     if (param.code) {
-      const { status, message } = this.parseErrorCodeString(param.code);
+      const { status, message } = ApiError.parseErrorCode(param.code);
       this.status = status;
       this.code = param.code;
       if (!param.message) {
@@ -48,14 +61,16 @@ export class ApiError extends Error {
       this.status = param.status;
     }
 
-    if (param.error) {
-      if (param.error instanceof ZodError) {
-        this.cause = param.error.flatten();
+    if (param.cause) {
+      if (param.cause instanceof ZodError) {
+        this.cause = param.cause.flatten();
+      } else {
+        this.cause = param.cause;
       }
     }
   }
 
-  parseErrorCodeString(code: TErrorCode) {
+  static parseErrorCode(code: TErrorCode) {
     const split = EErrorCode[code].split(":");
     const parsed = {
       status: parseInt(split[0]),
@@ -65,7 +80,13 @@ export class ApiError extends Error {
     return parsed;
   }
 
-  static build(param: TApiErrorParam) {
+  static build(code: TErrorCode, params?: TApiErrorOptionalsParams): ApiError;
+  static build(params: TApiErrorParams): ApiError;
+  static build(param: TErrorCode | TApiErrorParams, config?: TApiErrorParams) {
+    if (typeof param === "string") {
+      const { status, message } = ApiError.parseErrorCode(param);
+      return new ApiError({ code: param, status, message, ...config });
+    }
     return new ApiError(param);
   }
 
