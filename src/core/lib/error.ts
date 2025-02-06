@@ -9,18 +9,6 @@ export enum EErrorCode {
   ErrConflict = "409:Request conflict",
   ErrTooManyRequests = "425:Too many requests",
   ErrUnknown = "500:Unknown error occurred",
-
-  // auth error
-  ErrAuthInvalidRequest = "400:Request is missing required parameter",
-  ErrAuthInvalidClient = "401:Client id or secret is invalid",
-  ErrAuthInvalidGrant = "400:Grant is invalid or expired",
-  ErrAuthInvalidScope = "400:Scope value is invalid",
-  ErrAuthUnauthorizedClient = "401:Client is not authorized to use the requested grant type",
-  ErrAuthUnsupportedGrantType = "400:Grant type is not supported",
-  ErrAuthIncorrectAuthType = "400:Incorrect auth type",
-  ErrAuthDisabled = "401:Client credentials is disabled",
-  ErrAuthMismatch = "401:Client credentials is mismatch",
-  ErrAuthInvalidToken = "400:Token is malformed or expired",
 }
 
 export type TErrorCode = keyof typeof EErrorCode;

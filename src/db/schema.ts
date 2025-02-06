@@ -146,7 +146,7 @@ export const OauthAppsSchema = pgTable("oauth_apps", {
     }),
   clientSecret: encrypted("client_secret").notNull(),
   name: varchar({ length: 255 }).notNull(),
-  scope: text(),
+  scope: text().default(""),
   description: varchar({ length: 255 }),
   disabled: boolean().default(false),
   createdAt: timestamp().defaultNow(),
