@@ -6,6 +6,7 @@ export class AuthRepository {
   static getById(db: TDbClient, clientId: string) {
     return db.query.OauthAppsSchema.findFirst({
       where: eq(OauthAppsSchema.clientId, clientId),
+      with: { website: true },
     });
   }
 }
