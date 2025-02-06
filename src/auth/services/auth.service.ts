@@ -1,5 +1,9 @@
 import { NextRequest } from "next/server";
-import { GrantTypesSchema } from "../schema";
+import {
+  GrantTypesSchema,
+  TVerifiedToken,
+  VerifiedTokenSchema,
+} from "../schema";
 import { AuthRepository } from "../repositories/auth.repository";
 import { db } from "@/db";
 import { createId } from "@paralleldrive/cuid2";
@@ -48,12 +52,37 @@ export type TVerifyTokenParams = {
   req: NextRequest;
 };
 
+class AuthScope {
+  private _scope;
+
+  constructor(scope: string) {
+    this._scope = scope.split(" ");
+  }
+
+  get(key: string) {
+    return this._scope.includes(key);
+  }
+
+  getAll() {
+    return this._scope;
+  }
+
+  static init(scope?: string | null) {
+    return new AuthScope(scope || "");
+  }
+
+  get length() {
+    return this._scope.length;
+  }
+}
+
 export class AuthService {
   private _issuer = process.env.HUB_URL;
   private _secret = process.env.HUB_SECRET as string;
   private _expiresIn = 30 * 60; // access token expires in 30 minutes
   private _refreshExpiresIn = 24 * 60 * 60; // refresh token expires in a day
   private _jtiFn = () => createId();
+  static scope = AuthScope;
 
   constructor(config?: TAuthConfig) {
     if (config) {
@@ -124,7 +153,7 @@ export class AuthService {
     }
   }
 
-  async getClientById(clientId: string) {
+  async getAuthAppById(clientId: string) {
     return await AuthRepository.getById(db, clientId);
   }
 
@@ -216,15 +245,20 @@ export class AuthService {
     return client;
   }
 
-  async verifyAccessToken(token: string) {
+  async verifyAccessToken(token: string): Promise<TVerifiedToken> {
     let payload;
     try {
       payload = verify(token, this._secret);
-      if (typeof payload === "string" || !payload.sub || !payload.jti) {
+      if (typeof payload === "string") {
         throw AuthError.build("ErrAuthInvalidToken");
       }
 
-      // check for blacklisted sub
+      const parsed = VerifiedTokenSchema.safeParse(payload);
+      if (!parsed.success) {
+        throw AuthError.build("ErrAuthInvalidToken");
+      }
+
+      // // check for blacklisted sub
       // const newIat = await RedisClient.get(payload.sub);
       // if (newIat) {
       //   if (
@@ -232,17 +266,17 @@ export class AuthService {
       //     typeof newIat != "string" ||
       //     payload.iat < parseInt(newIat)
       //   ) {
-      //     console.debug("newer iat required");
       //     throw AuthError.build("ErrAuthInvalidToken");
       //   }
       // }
 
-      // check for blacklisted jti
+      // // check for blacklisted jti
       // const blockedJti = await RedisClient.get(payload.jti);
       // if (blockedJti) {
-      //   console.debug("jti is blocked", payload.jti);
       //   throw AuthError.build("ErrAuthInvalidToken");
       // }
+
+      return parsed.data;
     } catch (e) {
       if (e instanceof AuthError) {
         throw e;
@@ -254,8 +288,6 @@ export class AuthService {
       }
       throw AuthError.build("ErrAuthUnknown");
     }
-
-    return payload;
   }
 
   async verifyToken({ req }: TVerifyTokenParams) {
