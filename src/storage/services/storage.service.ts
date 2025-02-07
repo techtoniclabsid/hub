@@ -159,13 +159,17 @@ export class StorageService {
       const claim = AuthService.scope.init(scope);
       // check if scope is exists
       if (granted.length == 0 || claim.length == 0) {
-        throw ApiError.build("ErrForbidden");
+        throw ApiError.build("ErrForbidden", {
+          message: "Insufficient granted permission",
+        });
       }
 
       // check if needed scope(s) is matching
       for (const currScope of expectedScope) {
         if (!granted.get(currScope) || !claim.get(currScope)) {
-          throw ApiError.build("ErrForbidden");
+          throw ApiError.build("ErrForbidden", {
+            message: "Insufficient granted permission",
+          });
         }
       }
     } catch (e) {
