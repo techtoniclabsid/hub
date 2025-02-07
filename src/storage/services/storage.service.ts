@@ -5,19 +5,66 @@ import { db } from "@/db";
 import { ApiError } from "@/core/lib/error";
 import { AuthService } from "@/auth/services/auth.service";
 import { SIZE_1M, TUpdateStorageSchema } from "../schema";
+import { S3Error } from "minio";
 
 export class StorageService {
-  static async deleteObject(bucket: string, filename: string, prefix = "") {
-    // TODO: implemets deleteObject handler
-    const location = path.posix.join(prefix, filename);
-    console.log(bucket, location);
+  static async deleteObject({
+    clientId,
+    filename,
+    scope,
+    prefix = "",
+  }: {
+    clientId: string;
+    filename: string;
+    scope: string;
+    prefix?: string;
+  }) {
+    try {
+      const expectedScope = ["storage:delete"];
+      const storage = await StorageService.verifyStoragePermission(
+        clientId,
+        scope,
+        expectedScope
+      );
+      const location = path.posix.join(prefix, filename);
+      // get object stats
+      const stat = await MinioClient.statObject(storage.bucket, location);
+      await MinioClient.removeObject(storage.bucket, location);
+
+      // update storage remaining
+      const remaining = storage.remaining + stat.size;
+      await StorageService.updateStorage(storage.id, { remaining });
+    } catch (e) {
+      if (e instanceof ApiError) {
+        throw e;
+      }
+
+      if (e instanceof S3Error) {
+        if (e.code === "NotFound") {
+          throw ApiError.build("ErrNotFound");
+        }
+      }
+
+      console.error(e);
+      throw ApiError.build("ErrUnknown");
+    }
   }
 
-  static async getObject(bucket: string, filename: string, prefix = "") {
-    // TODO: implements getObject handler
-    const location = path.posix.join(prefix, filename);
-    console.log(bucket, location);
-  }
+  // static async getObject({
+  //   clientId,
+  //   filename,
+  //   scope,
+  //   prefix,
+  // }: {
+  //   clientId: string;
+  //   filename: string;
+  //   scope: string;
+  //   prefix?: string;
+  // }) {
+  //   const expectedScope = ["storage:read"];
+  //   const storage = await StorageService.verifyStoragePermission(clientId, scope, expectedScope);
+  //   const obj =
+  // }
 
   static async getStorage(id: string) {
     return await StorageRepository.get(db, id);
@@ -46,6 +93,49 @@ export class StorageService {
       throw ApiError.build("ErrConflict");
     }
 
+    const expectedScope = ["storage:create"];
+    const storage = await StorageService.verifyStoragePermission(
+      clientId,
+      scope,
+      expectedScope
+    );
+
+    try {
+      // check for remaining storage
+      const remaining = storage.remaining - size;
+      if (remaining <= 0) {
+        throw ApiError.build("ErrConflict");
+      }
+
+      // generate presignedUrl for upload
+      const fileKey = path.posix.join(prefix, filename);
+      const result = await MinioClient.presignedUrl(
+        "PUT",
+        storage.bucket,
+        fileKey,
+        expiry,
+        { "X-Amz-Content-Length": String(size) }
+      );
+
+      // update storage remaining
+      await StorageService.updateStorage(storage.id, { remaining });
+
+      return result;
+    } catch (e) {
+      console.error(e);
+      throw ApiError.build("ErrUnknown");
+    }
+  }
+
+  static async updateStorage(storageId: string, data: TUpdateStorageSchema) {
+    return await StorageRepository.update(db, storageId, data);
+  }
+
+  static async verifyStoragePermission(
+    clientId: string,
+    scope: string,
+    expectedScope: string[]
+  ) {
     let authApp;
     try {
       authApp = await AuthService.init().getAuthAppById(clientId);
@@ -69,12 +159,18 @@ export class StorageService {
       const claim = AuthService.scope.init(scope);
       // check if scope is exists
       if (granted.length == 0 || claim.length == 0) {
-        throw ApiError.build("ErrUnauthorized");
+        throw ApiError.build("ErrForbidden", {
+          message: "Insufficient granted permission",
+        });
       }
 
-      // check if needed scope is matching
-      if (!granted.get("storage:create") || !claim.get("storage:create")) {
-        throw ApiError.build("ErrUnauthorized");
+      // check if needed scope(s) is matching
+      for (const currScope of expectedScope) {
+        if (!granted.get(currScope) || !claim.get(currScope)) {
+          throw ApiError.build("ErrForbidden", {
+            message: "Insufficient granted permission",
+          });
+        }
       }
     } catch (e) {
       if (e instanceof ApiError) {
@@ -85,33 +181,6 @@ export class StorageService {
       throw ApiError.build("ErrUnknown");
     }
 
-    try {
-      // check for remaining storage
-      const remaining = storage.remaining - size;
-      if (remaining <= 0) {
-        throw ApiError.build("ErrConflict");
-      }
-
-      // generate presignedUrl for upload
-      const result = await MinioClient.presignedUrl(
-        "PUT",
-        storage.bucket,
-        filename,
-        expiry,
-        { prefix, "content-length": size.toString() }
-      );
-
-      // update storage remaining
-      await StorageService.updateStorage(storage.id, { remaining });
-
-      return result;
-    } catch (e) {
-      console.error(e);
-      throw ApiError.build("ErrUnknown");
-    }
-  }
-
-  static async updateStorage(storageId: string, data: TUpdateStorageSchema) {
-    return await StorageRepository.update(db, storageId, data);
+    return storage;
   }
 }
