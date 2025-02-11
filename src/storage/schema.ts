@@ -8,17 +8,9 @@ export const SIZE_1G = SIZE_1M * 1000;
 export const PutObjectSchema = z.object({
   filename: z.string(),
   size: z.number().positive().min(SIZE_1B).max(SIZE_1G),
-  prefix: z.string().optional(),
 });
 
 export type TPutObjectSchema = z.infer<typeof PutObjectSchema>;
-
-export const DeleteObjectSchema = z.object({
-  filename: z.string(),
-  prefix: z.string().optional(),
-});
-
-export type TDeleteObjectSchema = z.infer<typeof DeleteObjectSchema>;
 
 export const UpdateStorageSchema = z
   .object({

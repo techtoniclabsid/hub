@@ -8,6 +8,7 @@ export const VerifiedTokenSchema = z.object({
   jti: z.string().cuid2(),
   iss: z.string().url(),
   sub: z.string().cuid2(),
+  aud: z.string().cuid2().optional(),
   scope: z.string().optional(),
   iat: z.number().positive(),
   exp: z.number().positive(),
