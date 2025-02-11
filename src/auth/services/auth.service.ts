@@ -196,7 +196,8 @@ export class AuthService {
         }
 
         const token = this.generateToken({
-          subject: client.clientId,
+          subject: client.website.id,
+          audience: client.clientId,
           scope: client.scope,
         });
 
